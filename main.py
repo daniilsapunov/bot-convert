@@ -1,6 +1,8 @@
 import asyncio
 import logging
-import io
+import io, whisper
+
+import openai
 from pydub import AudioSegment
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums.parse_mode import ParseMode
@@ -15,7 +17,7 @@ from handlers import router
 # Инициализация бота и диспетчера
 bot = Bot(token=settings.BOT_TOKEN)
 dp = Dispatcher()
-
+# aclient = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 # Настройка OpenAI API
 openai.api_key = settings.OPENAI_API_KEY
 
@@ -31,10 +33,16 @@ async def main():
 async def audio_to_text(file_path: str) -> str:
     """Принимает путь к аудио файлу, возвращает текст файла."""
     with open(file_path, "rb") as audio_file:
-        transcript = await openai.Audio.atranscribe(
-            "whisper-1", audio_file
-        )
+        transcript = await openai.Audio.atranscribe("whisper-1", audio_file)
     return transcript["text"]
+
+
+# async def audio_to_text(file_path: str) -> str:
+#     with open(file_path, "rb") as audio_file:
+#         model = whisper.load_model("base")
+#         transcript = await model.transcribe(audio_file, fp16=False
+#                                             )
+#         return transcript["text"]
 
 
 async def save_voice_as_mp3(bot: Bot, voice: Voice) -> str:
@@ -52,6 +60,7 @@ async def save_voice_as_mp3(bot: Bot, voice: Voice) -> str:
 @router.message(F.content_type == "voice")
 async def process_voice_message(message: Message, bot: Bot):
     """Принимает голосовое сообщение, транскрибирует его в текст."""
+
     voice_path = await save_voice_as_mp3(bot, message.voice)
     transcripted_voice_text = await audio_to_text(voice_path)
 
