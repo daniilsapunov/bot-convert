@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import io, whisper
+import io
 
 import openai
 from pydub import AudioSegment
@@ -8,23 +8,27 @@ from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Voice, Message
-import openai
+
 
 from config import settings
+from aiogram.filters import Command
 
-from handlers import router
+router = Router()
 
-# Инициализация бота и диспетчера
+
+@router.message(Command('start'))
+async def start_handler(msg: Message):
+    await msg.answer(
+        "Привет! Я помогу тебе преобразовать голосовое сообщение в текст! ОТправь мне голосовое сообщение!")
+
+
 bot = Bot(token=settings.BOT_TOKEN)
-dp = Dispatcher()
-# aclient = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-# Настройка OpenAI API
+dp = Dispatcher(storage=MemoryStorage())
+
 openai.api_key = settings.OPENAI_API_KEY
 
 
 async def main():
-    bot = Bot(token=settings.BOT_TOKEN)
-    dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
@@ -35,14 +39,6 @@ async def audio_to_text(file_path: str) -> str:
     with open(file_path, "rb") as audio_file:
         transcript = await openai.Audio.atranscribe("whisper-1", audio_file)
     return transcript["text"]
-
-
-# async def audio_to_text(file_path: str) -> str:
-#     with open(file_path, "rb") as audio_file:
-#         model = whisper.load_model("base")
-#         transcript = await model.transcribe(audio_file, fp16=False
-#                                             )
-#         return transcript["text"]
 
 
 async def save_voice_as_mp3(bot: Bot, voice: Voice) -> str:
@@ -66,6 +62,27 @@ async def process_voice_message(message: Message, bot: Bot):
 
     if transcripted_voice_text:
         await message.reply(text=transcripted_voice_text)
+
+
+async def get_assistant_response(question: str) -> str:
+    """Получает ответ от OpenAI Assistant API на заданный вопрос."""
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",  # Или другая подходящая модель Assistant API
+        messages=[
+            {"role": "user", "content": question}
+        ],
+        temperature=0.7,  # Уровень креативности (0 - минимальный, 1 - максимальный)
+        max_tokens=1000,  # Максимальное количество токенов в ответе
+    )
+    return response.choices[0].message['content']
+
+
+@router.message()
+async def handle_message(message: Message):
+    """Обрабатывает текстовые сообщения."""
+    question = message.text
+    response = await get_assistant_response(question)
+    await message.reply(response)
 
 
 if __name__ == "__main__":
