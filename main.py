@@ -2,7 +2,10 @@ import asyncio
 import logging
 import io
 
-import openai
+from openai import OpenAI, AsyncOpenAI
+
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
+aclient = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 from pydub import AudioSegment
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums.parse_mode import ParseMode
@@ -24,7 +27,6 @@ async def start_handler(msg: Message):
 bot = Bot(token=settings.BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-openai.api_key = settings.OPENAI_API_KEY
 
 
 async def main():
@@ -36,7 +38,7 @@ async def main():
 async def audio_to_text(file_path: str) -> str:
     """Принимает путь к аудио файлу, возвращает текст файла."""
     with open(file_path, "rb") as audio_file:
-        transcript = await openai.Audio.atranscribe("whisper-1", audio_file)
+        transcript = await aclient.audio.transcribe("whisper-1", audio_file)
     return transcript["text"]
 
 
@@ -65,15 +67,13 @@ async def process_voice_message(message: Message, bot: Bot):
 
 async def get_assistant_response(question: str) -> str:
     """Получает ответ от OpenAI Assistant API на заданный вопрос."""
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",  # Или другая подходящая модель Assistant API
-        messages=[
-            {"role": "user", "content": question}
-        ],
-        temperature=0.7,  # Уровень креативности (0 - минимальный, 1 - максимальный)
-        max_tokens=1000,  # Максимальное количество токенов в ответе
-    )
-    return response.choices[0].message['content']
+    response = client.chat.completions.create(model="gpt-3.5-turbo",  # Или другая подходящая модель Assistant API
+    messages=[
+        {"role": "user", "content": question}
+    ],
+    temperature=0.7,  # Уровень креативности (0 - минимальный, 1 - максимальный)
+    max_tokens=1000)
+    return response.choices[0].message.content
 
 
 async def text_to_speech(text: str) -> Tuple[str, str]:
