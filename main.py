@@ -7,9 +7,8 @@ from pydub import AudioSegment
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import Voice, Message
-
-
+from aiogram.types import Voice, Message, Audio
+from typing import Tuple
 from config import settings
 from aiogram.filters import Command
 
@@ -77,6 +76,20 @@ async def get_assistant_response(question: str) -> str:
     return response.choices[0].message['content']
 
 
+async def text_to_speech(text: str) -> Tuple[str, str]:
+    """Преобразует текст в речь с помощью OpenAI TTS API"""
+    response = await openai.Audio.speech.create(
+        model="tts-1",
+        voice="alloy",
+        input=text
+    )
+    voice_data = response.content
+    voice_file_path = "voice_files/response.mp3"
+    with open(voice_file_path, "wb") as f:
+        f.write(voice_data)
+    return voice_file_path, response.headers.get('Content-Type', 'audio/mpeg')
+
+
 @router.message()
 async def handle_message(message: Message):
     """Обрабатывает текстовые сообщения."""
@@ -84,6 +97,22 @@ async def handle_message(message: Message):
     response = await get_assistant_response(question)
     await message.reply(response)
 
+    # Преобразовать текст в речь
+    voice_file_path, content_type = await text_to_speech(response)
+
+    # Отправить голосовое сообщение
+    await message.reply_audio(
+        Audio(source=voice_file_path, mime_type=content_type)
+    )
+
+
+# @router.message()
+# async def handle_message(message: Message):
+#     """Обрабатывает текстовые сообщения."""
+#     question = message.text
+#     response = await get_assistant_response(question)
+#     await message.reply(response)
+#
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
