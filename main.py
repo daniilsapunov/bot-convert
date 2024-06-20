@@ -1,21 +1,23 @@
 import asyncio
 import logging
 import io
+import os
 
 from openai import OpenAI, AsyncOpenAI
-
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
-aclient = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+import uuid
 from pydub import AudioSegment
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import Voice, Message, Audio
+from aiogram.types import Voice, Message, Audio, InputFile, BufferedInputFile, FSInputFile
 from typing import Tuple
 from config import settings
 from aiogram.filters import Command
 
 router = Router()
+
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
+aclient = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 @router.message(Command('start'))
@@ -28,18 +30,23 @@ bot = Bot(token=settings.BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 
-
 async def main():
     dp.include_router(router)
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
 
+# async def audio_to_text(file_path: str) -> str:
+#     """Принимает путь к аудио файлу, возвращает текст файла."""
+#     with open(file_path, "rb") as audio_file:
+#         transcript = await aclient.audio.transcribe("whisper-1", audio_file)
+#     return transcript["text"]
+
 async def audio_to_text(file_path: str) -> str:
     """Принимает путь к аудио файлу, возвращает текст файла."""
     with open(file_path, "rb") as audio_file:
-        transcript = await aclient.audio.transcribe("whisper-1", audio_file)
-    return transcript["text"]
+        transcript = await aclient.audio.transcriptions.create(model="whisper-1", file=audio_file)
+    return transcript.text
 
 
 async def save_voice_as_mp3(bot: Bot, voice: Voice) -> str:
@@ -68,51 +75,78 @@ async def process_voice_message(message: Message, bot: Bot):
 async def get_assistant_response(question: str) -> str:
     """Получает ответ от OpenAI Assistant API на заданный вопрос."""
     response = client.chat.completions.create(model="gpt-3.5-turbo",  # Или другая подходящая модель Assistant API
-    messages=[
-        {"role": "user", "content": question}
-    ],
-    temperature=0.7,  # Уровень креативности (0 - минимальный, 1 - максимальный)
-    max_tokens=1000)
+                                              messages=[
+                                                  {"role": "user", "content": question}
+                                              ],
+                                              temperature=0.7,
+                                              # Уровень креативности (0 - минимальный, 1 - максимальный)
+                                              max_tokens=1000)
     return response.choices[0].message.content
 
 
-async def text_to_speech(text: str) -> Tuple[str, str]:
+# async def text_to_speech(text: str) -> str:
+#     """Преобразует текст в речь с помощью OpenAI TTS API"""
+#     with client.audio.speech.with_streaming_response.create(
+#             model="tts-1",
+#             voice="alloy",
+#             input=text,
+#             response_format='aac'
+#     ) as response:
+#         response.stream_to_file(f"voice_output/output{response.id}.mp3")
+#     voice_file_path = f"output.mp3"
+#     return voice_file_path
+
+
+async def text_to_speech(text: str) -> str:
     """Преобразует текст в речь с помощью OpenAI TTS API"""
-    response = await openai.Audio.speech.create(
-        model="tts-1",
-        voice="alloy",
-        input=text
-    )
-    voice_data = response.content
-    voice_file_path = "voice_files/response.mp3"
-    with open(voice_file_path, "wb") as f:
-        f.write(voice_data)
-    return voice_file_path, response.headers.get('Content-Type', 'audio/mpeg')
+    filename = f'voice_output/{str(uuid.uuid4())}' + ".ogg"
+    with client.audio.speech.with_streaming_response.create(
+            model="tts-1",
+            voice="alloy",
+            input=text,
+            response_format='aac'
+    ) as response:
+        response.stream_to_file(filename)
+    voice_file_path = os.path.join(filename)
+    return voice_file_path
 
 
 @router.message()
-async def handle_message(message: Message):
+async def handle_message(message: Message, bot: Bot):
     """Обрабатывает текстовые сообщения."""
     question = message.text
     response = await get_assistant_response(question)
     await message.reply(response)
 
     # Преобразовать текст в речь
-    voice_file_path, content_type = await text_to_speech(response)
+    voice_file_path = await text_to_speech(response)
+    voice = FSInputFile(f'{voice_file_path}')
+    await bot.send_audio(message.chat.id, voice)
 
-    # Отправить голосовое сообщение
-    await message.reply_audio(
-        Audio(source=voice_file_path, mime_type=content_type)
-    )
+    # if voice_file_path:
+    #     with open(voice_file_path, "rb") as voice_file:
+    #         # Create InputFile object from the opened file
+    #         input_file = FSInputFile(voice_file_path)
+    #         # Send the audio using InputFile
+    #         voice_file_id = await bot.send_audio(chat_id=message.chat.id, audio=input_file)  # Send the audio
+    #
+    #         # Extract file_unique_id for the uploaded audio
+    #         file_unique_id = voice_file_id.audio.file_unique_id
+    #
+    #     # Retrieve the duration of the audio
+    #     voice_file_info = await bot.get_file(voice_file_id.audio.file_id)
+    #     duration = voice_file_info.file_size / 1024  # Assuming size is in KB, adjust if needed
+    #
+    #     # Create and send the Audio object
+    #     await message.reply_audio(
+    #         Audio(
+    #             source=voice_file_path,
+    #             file_id=voice_file_id.audio.file_id,
+    #             file_unique_id=file_unique_id,
+    #             duration=duration
+    #         )
+    #     )
 
-
-# @router.message()
-# async def handle_message(message: Message):
-#     """Обрабатывает текстовые сообщения."""
-#     question = message.text
-#     response = await get_assistant_response(question)
-#     await message.reply(response)
-#
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
