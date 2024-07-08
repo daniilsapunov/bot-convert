@@ -3,8 +3,7 @@ from aiogram import Bot, F, Router
 from aiogram.types import Message, FSInputFile
 from config import settings
 from aiogram.filters import Command
-from utils import text_to_speech, save_voice_as_mp3, audio_to_text
-from api import get_assistant_response
+from utils import text_to_speech, save_voice_as_mp3, audio_to_text, get_assistant_response
 
 router = Router()
 
