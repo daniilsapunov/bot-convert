@@ -4,15 +4,6 @@ from src.config import settings
 
 Base = declarative_base()
 
-
-class User(Base):
-    __tablename__ = "users"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    telegram_id: Mapped[int] = mapped_column(unique=True)
-    values: Mapped[str]
-
-
 async_engine = create_async_engine(
     url=settings.database_url_asyncpg, echo=True, pool_pre_ping=True
 )
