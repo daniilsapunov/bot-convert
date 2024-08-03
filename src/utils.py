@@ -4,8 +4,7 @@ from pydub import AudioSegment
 from openai import OpenAI, AsyncOpenAI
 from aiogram import Bot
 from aiogram.types import Voice
-
-from config import settings
+from src.config import settings
 import uuid
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -55,3 +54,56 @@ async def get_assistant_response(question: str) -> str:
                                               # Уровень креативности (0 - минимальный, 1 - максимальный)
                                               max_tokens=1000)
     return response.choices[0].message.content
+
+
+# @functools.partial(client.chat.completions.create, model="gpt-3.5-turbo")
+# def validate_value(value):
+#     response = client.chat.completions.create(
+#         messages=[
+#             {
+#                 "role": "user",
+#                 "content": f"Валидируй эту ценность: {value} - верни True, если она корректная, иначе False",
+#             }
+#         ],
+#         functions=[
+#             {
+#                 "name": "validate",
+#                 "description": "Проверяет, является ли ценность корректной.",
+#                 "parameters": {
+#                     "type": "object",
+#                     "properties": {
+#                         "result": {
+#                             "type": "boolean",
+#                             "description": "True, если ценность корректная, иначе False",
+#                         },
+#                     },
+#                     "required": ["result"],
+#                 },
+#             }
+#         ],
+#     )
+#
+#     function_call = response["choices"][0]["message"]["function_call"]
+#
+#     if function_call:
+#         result = function_call["arguments"].split("=")[1].strip()
+#         return result == "True"
+#     else:
+#         return False
+
+
+# Функция для сохранения ценности в базу данных
+# def save_value(telegram_id, value):
+#     if validate_value(value):
+#         with get_db() as db:
+#             user = db.query(User).filter(User.telegram_id == telegram_id).first()
+#             if user:
+#                 user.values = value
+#                 db.commit()
+#             else:
+#                 new_user = User(telegram_id=telegram_id, values=value)
+#                 db.add(new_user)
+#                 db.commit()
+#         return True
+#     else:
+#         return False

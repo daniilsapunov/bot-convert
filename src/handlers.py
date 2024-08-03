@@ -1,7 +1,7 @@
 from openai import OpenAI, AsyncOpenAI
 from aiogram import Bot, F, Router
 from aiogram.types import Message, FSInputFile
-from config import settings
+from src.config import settings
 from aiogram.filters import Command
 from utils import text_to_speech, save_voice_as_mp3, audio_to_text, get_assistant_response
 
@@ -14,7 +14,8 @@ aclient = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 @router.message(Command('start'))
 async def start_handler(msg: Message):
     await msg.answer(
-        "Привет! Я помогу тебе преобразовать голосовое сообщение в текст! ОТправь мне голосовое сообщение!")
+        "Привет! Я помогу тебе определить и сохранить твои ценности. Начни с команды /values."
+    )
 
 
 @router.message(F.content_type == "voice")
@@ -22,7 +23,7 @@ async def process_voice_message(message: Message, bot: Bot):
     """Принимает голосовое сообщение, транскрибирует его в текст."""
 
     voice_path = await save_voice_as_mp3(bot, message.voice)
-    transcripted_voice_text = await audio_to_text(voice_path)
+    transcripted_voice_text: str = await audio_to_text(voice_path)
 
     if transcripted_voice_text:
         await message.reply(text=transcripted_voice_text)
