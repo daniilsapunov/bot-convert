@@ -3,7 +3,8 @@ from aiogram import Bot, F, Router
 from aiogram.types import Message, FSInputFile
 from src.config import settings
 from aiogram.filters import Command
-from utils import text_to_speech, save_voice_as_mp3, audio_to_text, get_assistant_response
+from utils import text_to_speech, save_voice_as_mp3, audio_to_text, get_assistant_response, ask_and_reply
+from database import async_session
 
 router = Router()
 
@@ -14,7 +15,9 @@ aclient = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 @router.message(Command('start'))
 async def start_handler(msg: Message):
     await msg.answer(
-        "Привет! Я помогу тебе определить и сохранить твои ценности. Начни с команды /values."
+        "Привет! Давай определим твои ключевые ценности. Например, "
+        "что для тебя важно в жизни?"
+        "Пожалуйста, напиши одну ценность:"
     )
 
 
@@ -29,14 +32,41 @@ async def process_voice_message(message: Message, bot: Bot):
         await message.reply(text=transcripted_voice_text)
 
 
+# @router.message()
+# async def handle_message(message: Message, bot: Bot):
+#     """Обрабатывает текстовые сообщения."""
+#     question = message.text
+#     response = await get_assistant_response(question)
+#     await message.reply(response)
+#
+#     # Преобразовать текст в речь
+#     voice_file_path = await text_to_speech(response)
+#     voice = FSInputFile(f'{voice_file_path}')
+#     await bot.send_audio(message.chat.id, voice)
+#
+#     # Выяснить ценность пользователя
+#     values = await ask_and_reply(question, message.from_user.id)
+#     await message.reply(values)
+#
 @router.message()
 async def handle_message(message: Message, bot: Bot):
     """Обрабатывает текстовые сообщения."""
+    context = {}
     question = message.text
-    response = await get_assistant_response(question)
-    await message.reply(response)
+    # response = await get_assistant_response(question)
+    # await message.reply(response)
 
     # Преобразовать текст в речь
-    voice_file_path = await text_to_speech(response)
-    voice = FSInputFile(f'{voice_file_path}')
-    await bot.send_audio(message.chat.id, voice)
+    # voice_file_path = await text_to_speech(response)
+    # voice = FSInputFile(f'{voice_file_path}')
+    # await bot.send_audio(message.chat.id, voice)
+
+    # Выяснить ценность пользователя
+    values = await ask_and_reply(question, message.from_user.id, context)
+    await message.reply(values)
+
+    # Обновить контекст предыдущих сообщений
+    if message.from_user.id in context:
+        context[message.from_user.id].append(question)
+    else:
+        context[message.from_user.id] = [question]

@@ -1,11 +1,15 @@
+from functools import partial, wraps
 import io
 import os
+import sqlalchemy
 from pydub import AudioSegment
 from openai import OpenAI, AsyncOpenAI
 from aiogram import Bot
 from aiogram.types import Voice
 from src.config import settings
 import uuid
+from models import User
+from database import async_session
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 aclient = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -56,54 +60,101 @@ async def get_assistant_response(question: str) -> str:
     return response.choices[0].message.content
 
 
-# @functools.partial(client.chat.completions.create, model="gpt-3.5-turbo")
-# def validate_value(value):
-#     response = client.chat.completions.create(
-#         messages=[
-#             {
-#                 "role": "user",
-#                 "content": f"Валидируй эту ценность: {value} - верни True, если она корректная, иначе False",
-#             }
-#         ],
-#         functions=[
-#             {
-#                 "name": "validate",
-#                 "description": "Проверяет, является ли ценность корректной.",
-#                 "parameters": {
-#                     "type": "object",
-#                     "properties": {
-#                         "result": {
-#                             "type": "boolean",
-#                             "description": "True, если ценность корректная, иначе False",
-#                         },
-#                     },
-#                     "required": ["result"],
-#                 },
-#             }
-#         ],
+async def save_value(telegram_id, values):
+    validation_response = client.chat.completions.create(
+        model="gpt-3.5-turbo-0613",
+        messages=[
+            {"role": "user",
+             "content": f"Does this answer contain any nonsense or inaccuracies? Answer True or False:\n{values}"}
+        ],
+        max_tokens=10,
+        temperature=0.0,
+    )
+
+    if validation_response.choices[0].message.content.strip().lower() == "false":
+        async with async_session() as session:
+            stmt = (
+                sqlalchemy.select(User)
+                .where(User.telegram_id == telegram_id)
+            )
+            result = await session.execute(stmt)
+            if result.scalars().one_or_none():
+                stmt = (
+                    sqlalchemy.update(User)
+                    .where(User.telegram_id == telegram_id)
+                    .values(values=values)
+                    .returning(User)
+                )
+                await session.execute(stmt)
+                await session.commit()
+                return True
+            else:
+                user = User(telegram_id=telegram_id, values=values)
+                session.add(user)
+                await session.commit()
+                return True
+    else:
+        return False
+
+
+functions = [
+    {
+        "name": "save_value",
+        "description": "Verifies the validity of the value. True or False",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "value": {
+                    "type": "string",
+                    "description": "User Defined Value",
+                },
+            },
+            "required": ["value"],
+        },
+    }
+]
+
+
+# async def ask_and_reply(prompt, telegram_id):
+#     completion = await aclient.chat.completions.create(
+#         model="gpt-3.5-turbo-0613",
+#         messages=[{"role": "user", "content": prompt}],
+#         functions=functions,
+#         function_call="auto",
 #     )
+#     output = completion.choices[0]
 #
-#     function_call = response["choices"][0]["message"]["function_call"]
-#
-#     if function_call:
-#         result = function_call["arguments"].split("=")[1].strip()
-#         return result == "True"
+#     if output.message.function_call.name == "save_value":
+#         print(output.message.function_call.name)
+#         if completion.choices[0].message.function_call.arguments:
+#             print(completion.choices[0].message.function_call.arguments)
+#             print(completion.choices[0].message.function_call.arguments[12:-3])
+#             await save_value(telegram_id, completion.choices[0].message.function_call.arguments[12:-3])
+#         return completion.choices[0].message.function_call.arguments
 #     else:
 #         return False
 
 
-# Функция для сохранения ценности в базу данных
-# def save_value(telegram_id, value):
-#     if validate_value(value):
-#         with get_db() as db:
-#             user = db.query(User).filter(User.telegram_id == telegram_id).first()
-#             if user:
-#                 user.values = value
-#                 db.commit()
-#             else:
-#                 new_user = User(telegram_id=telegram_id, values=value)
-#                 db.add(new_user)
-#                 db.commit()
-#         return True
-#     else:
-#         return False
+async def ask_and_reply(prompt, telegram_id, context):
+    # Проверяем, есть ли контекст для данного пользователя
+    if telegram_id in context:
+        # Добавляем предыдущие сообщения в качестве контекста
+        context_messages = [{"role": "user", "content": msg} for msg in context[telegram_id]]
+        messages = context_messages + [{"role": "user", "content": prompt}]
+    else:
+        messages = [{"role": "user", "content": prompt}]
+
+    completion = await aclient.chat.completions.create(
+        model="gpt-3.5-turbo-0613",
+        messages=messages,
+        functions=functions,
+        function_call="auto",
+    )
+    output = completion.choices[0]
+
+    if output.message.function_call.name == "save_value":
+        if completion.choices[0].message.function_call.arguments:
+            await save_value(telegram_id, completion.choices[0].message.function_call.arguments[12:-3])
+        return completion.choices[0].message.function_call.arguments
+    else:
+        return False
