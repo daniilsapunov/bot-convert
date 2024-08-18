@@ -3,8 +3,8 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
-from src.config import settings
-from src.handlers import router
+from config import settings
+from handlers import router
 from database import async_engine, Base
 
 bot = Bot(token=settings.BOT_TOKEN)
