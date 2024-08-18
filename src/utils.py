@@ -6,7 +6,7 @@ from pydub import AudioSegment
 from openai import OpenAI, AsyncOpenAI
 from aiogram import Bot
 from aiogram.types import Voice
-from src.config import settings
+from config import settings
 import uuid
 from models import User
 from database import async_session
@@ -115,26 +115,6 @@ functions = [
 ]
 
 
-# async def ask_and_reply(prompt, telegram_id):
-#     completion = await aclient.chat.completions.create(
-#         model="gpt-3.5-turbo-0613",
-#         messages=[{"role": "user", "content": prompt}],
-#         functions=functions,
-#         function_call="auto",
-#     )
-#     output = completion.choices[0]
-#
-#     if output.message.function_call.name == "save_value":
-#         print(output.message.function_call.name)
-#         if completion.choices[0].message.function_call.arguments:
-#             print(completion.choices[0].message.function_call.arguments)
-#             print(completion.choices[0].message.function_call.arguments[12:-3])
-#             await save_value(telegram_id, completion.choices[0].message.function_call.arguments[12:-3])
-#         return completion.choices[0].message.function_call.arguments
-#     else:
-#         return False
-
-
 async def ask_and_reply(prompt, telegram_id, context):
     # Проверяем, есть ли контекст для данного пользователя
     if telegram_id in context:
@@ -152,9 +132,35 @@ async def ask_and_reply(prompt, telegram_id, context):
     )
     output = completion.choices[0]
 
-    if output.message.function_call.name == "save_value":
-        if completion.choices[0].message.function_call.arguments:
-            await save_value(telegram_id, completion.choices[0].message.function_call.arguments[12:-3])
-        return completion.choices[0].message.function_call.arguments
-    else:
-        return False
+    try:
+        if output.message.function_call.name == "save_value":
+            if completion.choices[0].message.function_call.arguments:
+                await save_value(telegram_id, completion.choices[0].message.function_call.arguments[12:-3])
+            return completion.choices[0].message.function_call.arguments
+    except (AttributeError, IndexError) as e:
+        print(f"Ошибка: {e}")
+        # Продолжаем диалог, пытаясь получить ответ от модели
+        try:
+            response = output.message.content.strip()
+            return response
+        except (AttributeError, IndexError) as e:
+            print(f"Ошибка: {e}")
+            return "Извините, произошла ошибка. Я не могу продолжить диалог."
+
+
+async def generate_openai_response(prompt, context):
+
+    print(prompt)
+    print(context)
+    completion = await aclient.chat.completions.create(
+        model="gpt-3.5-turbo-0613",
+        messages=[
+            {"role": "system", "content": context},
+            {"role": "user", "content": prompt}
+        ],
+        max_tokens=1024,
+        n=1,
+        stop=None,
+        temperature=0.7,
+    )
+    return completion.choices[0].message.content.strip()

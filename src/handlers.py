@@ -1,9 +1,10 @@
 from openai import OpenAI, AsyncOpenAI
 from aiogram import Bot, F, Router
 from aiogram.types import Message, FSInputFile
-from src.config import settings
+from config import settings
 from aiogram.filters import Command
-from utils import text_to_speech, save_voice_as_mp3, audio_to_text, get_assistant_response, ask_and_reply
+from utils import text_to_speech, save_voice_as_mp3, audio_to_text, get_assistant_response, ask_and_reply, \
+    generate_openai_response
 from database import async_session
 
 router = Router()
@@ -32,22 +33,6 @@ async def process_voice_message(message: Message, bot: Bot):
         await message.reply(text=transcripted_voice_text)
 
 
-# @router.message()
-# async def handle_message(message: Message, bot: Bot):
-#     """Обрабатывает текстовые сообщения."""
-#     question = message.text
-#     response = await get_assistant_response(question)
-#     await message.reply(response)
-#
-#     # Преобразовать текст в речь
-#     voice_file_path = await text_to_speech(response)
-#     voice = FSInputFile(f'{voice_file_path}')
-#     await bot.send_audio(message.chat.id, voice)
-#
-#     # Выяснить ценность пользователя
-#     values = await ask_and_reply(question, message.from_user.id)
-#     await message.reply(values)
-#
 @router.message()
 async def handle_message(message: Message, bot: Bot):
     """Обрабатывает текстовые сообщения."""
@@ -63,10 +48,15 @@ async def handle_message(message: Message, bot: Bot):
 
     # Выяснить ценность пользователя
     values = await ask_and_reply(question, message.from_user.id, context)
-    await message.reply(values)
 
-    # Обновить контекст предыдущих сообщений
     if message.from_user.id in context:
         context[message.from_user.id].append(question)
     else:
         context[message.from_user.id] = [question]
+
+    if values:
+        await message.reply(f"Ваша ценность: {values}")
+    else:
+        # Используйте OpenAI для продолжения диалога
+        response = await generate_openai_response(question, context)
+        await message.reply(response)

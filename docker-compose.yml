@@ -1,0 +1,32 @@
+version: '3'
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bot
+    command: python3 src/main.py
+    volumes:
+      - ./:/src
+    ports:
+      - 8000:8000
+    depends_on:
+      - pgdb
+
+  pgdb:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_DB=db
+      - POSTGRES_USER=django
+      - POSTGRES_PASSWORD=django
+    container_name: pgdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdbdata:/var/lib/postgresql/data/
+
+
+volumes:
+  pgdbdata:
