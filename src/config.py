@@ -9,15 +9,15 @@ class Settings(BaseSettings):
     BOT_TOKEN: str = Field(..., env="BOT_TOKEN")
     OPENAI_API_KEY: str = Field(..., env="OPENAI_API_KEY")
 
-    DB_HOST: str = Field(..., env="DB_HOST")
-    DB_USER: str = Field(..., env="DB_USER")
-    DB_PASS: str = Field(..., env="DB_PASS")
-    DB_NAME: str = Field(..., env="DB_NAME")
-    DB_PORT: int = Field(..., env="DB_PORT")
+    PGHOST: str = Field(..., env="DB_HOST")
+    PGUSER: str = Field(..., env="PGUSER")
+    PGPASSWORD: str = Field(..., env="PGPASSWORD")
+    PGDATABASE: str = Field(..., env="PGDATABASE")
+    PGPORT: int = Field(..., env="PGPORT")
 
     @property
     def database_url_asyncpg(self):
-        return f'postgresql+asyncpg://{self.DB_USER}:{self.DB_PASS}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}'
+        return f'postgresql+asyncpg://{self.PGUSER}:{self.PGPASSWORD}@{self.PGHOST}:{self.PGPORT}/{self.PGDATABASE}'
 
     class Config:
         env_file = "../.env"
