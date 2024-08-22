@@ -65,7 +65,7 @@ async def save_value(telegram_id, values):
         model="gpt-3.5-turbo-0613",
         messages=[
             {"role": "user",
-             "content": f"Does this answer contain any nonsense or inaccuracies? Answer True or False:\n{values}"}
+             "content": f"Does this answer contain any nonsense or inaccuracies or obscene language? Answer true or false:\n{values}"}
         ],
         max_tokens=10,
         temperature=0.0,
@@ -100,7 +100,7 @@ async def save_value(telegram_id, values):
 functions = [
     {
         "name": "save_value",
-        "description": "Verifies the validity of the value. True or False",
+        "description": "Checking a message to see if the message is valuable. Answer True or False",
         "parameters": {
             "type": "object",
             "properties": {
@@ -139,25 +139,20 @@ async def ask_and_reply(prompt, telegram_id, context):
             return completion.choices[0].message.function_call.arguments
     except (AttributeError, IndexError) as e:
         print(f"Ошибка: {e}")
-        # Продолжаем диалог, пытаясь получить ответ от модели
-        try:
-            response = output.message.content.strip()
-            return response
-        except (AttributeError, IndexError) as e:
-            print(f"Ошибка: {e}")
-            return "Извините, произошла ошибка. Я не могу продолжить диалог."
+        return False
 
 
 async def generate_openai_response(prompt, context):
-
-    print(prompt)
-    print(context)
+    messages = [
+        {"role": "system",
+         "content": "Ты являешься помощником, который помогает пользователю определить его ценность. Задавай уточняющие вопросы пользователю чтобы определить его ценность."}
+    ]
+    if context:
+        messages.append({"role": "user", "content": f"Пользователь говорит, что его ценность: {context[0]}"})
+    messages.append({"role": "user", "content": prompt})
     completion = await aclient.chat.completions.create(
         model="gpt-3.5-turbo-0613",
-        messages=[
-            {"role": "system", "content": context},
-            {"role": "user", "content": prompt}
-        ],
+        messages=messages,
         max_tokens=1024,
         n=1,
         stop=None,

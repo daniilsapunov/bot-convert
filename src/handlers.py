@@ -15,11 +15,8 @@ aclient = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 @router.message(Command('start'))
 async def start_handler(msg: Message):
-    await msg.answer(
-        "Привет! Давай определим твои ключевые ценности. Например, "
-        "что для тебя важно в жизни?"
-        "Пожалуйста, напиши одну ценность:"
-    )
+    prompt = "Привет! Давай определим твои ценности. Например, что для тебя важно в жизни?"
+    await msg.answer(prompt)
 
 
 @router.message(F.content_type == "voice")
@@ -36,27 +33,23 @@ async def process_voice_message(message: Message, bot: Bot):
 @router.message()
 async def handle_message(message: Message, bot: Bot):
     """Обрабатывает текстовые сообщения."""
+    user_id = message.from_user.id
     context = {}
-    question = message.text
+    if user_id in context:
+        context[user_id].append(message.text)
+    else:
+        context[user_id] = [message.text]
     # response = await get_assistant_response(question)
     # await message.reply(response)
 
-    # Преобразовать текст в речь
     # voice_file_path = await text_to_speech(response)
     # voice = FSInputFile(f'{voice_file_path}')
     # await bot.send_audio(message.chat.id, voice)
 
-    # Выяснить ценность пользователя
-    values = await ask_and_reply(question, message.from_user.id, context)
-
-    if message.from_user.id in context:
-        context[message.from_user.id].append(question)
-    else:
-        context[message.from_user.id] = [question]
-
-    if values:
-        await message.reply(f"Ваша ценность: {values}")
-    else:
-        # Используйте OpenAI для продолжения диалога
-        response = await generate_openai_response(question, context)
+    values = await ask_and_reply(message.text, user_id, context)
+    print(values)
+    if values is False:
+        response = await generate_openai_response(message.text, context.get(user_id, []))
         await message.reply(response)
+    else:
+        await message.reply(f"Ваша ценность: {values[12:-3]}")
