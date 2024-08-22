@@ -1,5 +1,4 @@
 .env
 .idea
 test.py
-migration
 src/query
