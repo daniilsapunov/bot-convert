@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     BOT_TOKEN: str = Field(..., env="BOT_TOKEN")
     OPENAI_API_KEY: str = Field(..., env="OPENAI_API_KEY")
 
-    PGHOST: str = Field(..., env="DB_HOST")
+    PGHOST: str = Field(..., env="PGHOST")
     PGUSER: str = Field(..., env="PGUSER")
     PGPASSWORD: str = Field(..., env="PGPASSWORD")
     PGDATABASE: str = Field(..., env="PGDATABASE")
