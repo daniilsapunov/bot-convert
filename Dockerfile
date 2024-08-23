@@ -11,5 +11,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 # Копируем весь код проекта
 
-RUN alembic upgrade head
 CMD ["python","src/main.py"]
